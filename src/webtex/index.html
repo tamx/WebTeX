@@ -33,13 +33,18 @@
                     placeholder="Google Docs ID or URL"/>
                 <form action="/post" method="post" target="pdfframe">
                     <textarea name="data" id="tex" cols="85" class="tex lined">
-\documentclass{jarticle}
+\documentclass[twocolumn,a4j]{jarticle}
+\usepackage{amsmath}
+\usepackage[top=10truemm,bottom=10truemm,left=10truemm,right=10truemm]{geometry}
+
+\pagestyle{empty}
+
 \begin{document}
+\parindent = 0pt
 
 This is TEST.
 
-\end{document}
-                    </textarea>
+\end{document}</textarea>
                     <button type='submit' name='action' value='compile'>compile</button>
                 </form>
             </section>
