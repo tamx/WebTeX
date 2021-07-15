@@ -1,66 +1,75 @@
 <html>
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <script src="https://code.jquery.com/jquery-2.2.4.min.js" integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44=" crossorigin="anonymous"></script>
-        <script type="text/javascript" src="/static/jquery-linedtextarea.js"></script>
-        <link href="/static/jquery-linedtextarea.css" rel="stylesheet"/>
-        <style type="text/css">
-            .wrapper {
-                width: 100%;
-                height: 100%;
-                display: flex;
-                justify-content: center;
-            }
-            .main, .pdf {
-                height: 95%;
-                padding: 20px;
-            }
-            .pdf {
-                width: 100%;
-            }
-            .tex {
-                height: 95%;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="wrapper">
-            <section class="main">
-                <!--Add buttons to initiate auth sequence and sign out-->
-                <button id="authorize_button">Get From G Docs</button>
-                <input type="text" id="docsid" size="56"
-                    placeholder="Google Docs ID or URL"/>
-                <form action="/post" method="post" target="pdfframe">
-                    <textarea name="data" id="tex" cols="85" class="tex lined">
-\documentclass[twocolumn,a4j]{jarticle}
-\usepackage{amsmath}
-\usepackage[top=10truemm,bottom=10truemm,left=10truemm,right=10truemm]{geometry}
-
-\pagestyle{empty}
-
-\begin{document}
-\parindent = 0pt
-
-This is TEST.
-
-\end{document}</textarea>
-                    <button type='submit' name='action' value='compile'>compile</button>
-                </form>
-            </section>
-            <section class="pdf">
-                <iframe name="pdfframe" width="100%" height="100%"></iframe>
-            </section>
-        </div>
-        <script>
-            $(function(){
-              $('.lined').linedtextarea({
-                selectedLine: 1
-              });
-            });
-        </script>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style type="text/css">
+      .wrapper {
+        width: 100%;
+        height: 95%;
+        display: flex;
+        justify-content: center;
+      }
+      .main, .pdf {
+        padding: 10px;
+      }
+      .main {
+        width: 50%;
+        height: 95%;
+      }
+      .pdf {
+        width: 48%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <section class="main">
+        <!--Add buttons to initiate auth sequence and sign out-->
+        <button id="button"
+          onclick="load();"
+          >Get G Docs</button>
+        <input type="text" id="docsid" size="56"
+            placeholder="Google Docs ID or URL"/>
+        <iframe id="gdocs" class="tex" width="100%" height="100%"
+          ></iframe>
+        <button id='compile'>compile</button>
+      </section>
+      <section class="pdf">
+        <iframe name="pdfframe" width="100%" height="100%"></iframe>
+      </section>
+    </div>
 
   <script type="text/javascript">
+    function load() {
+      var docsid = document.getElementById('docsid').value;
+      var iframe = document.getElementById('gdocs');
+      iframe.setAttribute("src", docsid);
+    }
+
+    function submit(value) {
+      // form を動的に生成
+      var form = document.createElement('form');
+      form.action = 'post';
+      form.method = 'POST';
+      form.target = 'pdfframe';
+
+      // formdta イベントに関数を登録(submit する直前に発火)
+      form.addEventListener('formdata', (e) => {
+        var fd = e.formData;
+        
+        // データをセット
+        fd.set('data', value);
+        // console.log(value);
+      });
+
+      // body に追加
+      document.body.append(form);
+
+      // submit
+      form.submit();
+    }
+
     // Client ID and API key from the Developer Console
     var CLIENT_ID = 'YOUR_CLIENT_ID';
     var API_KEY = 'YOUR_API_KEY';
@@ -72,7 +81,7 @@ This is TEST.
     // included, separated by spaces.
     var SCOPES = "https://www.googleapis.com/auth/documents.readonly";
 
-    var authorizeButton = document.getElementById('authorize_button');
+    var authorizeButton = document.getElementById('compile');
     var signoutButton = document.getElementById('signout_button');
 
     /**
@@ -168,7 +177,9 @@ This is TEST.
           }
       });
       appendPre('Document successfully found.\n');
-      document.getElementById('tex').value = result;
+      // document.getElementById('tex').value = result;
+      // console.log(result);
+      submit(result);
     }, function(response) {
       appendPre('Error: ' + response.result.error.message);
     });
