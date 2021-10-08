@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -94,5 +95,15 @@ func main() {
 		}
 	})
 
-	http.ListenAndServe(":8080", nil)
+	// このロジックはApp Engine APIから完全脱却した場合のみ
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("Defaulting to port %s", port)
+	}
+
+	addressPort := fmt.Sprintf("0.0.0.0:%s", port)
+	log.Printf("Listening on port %s", addressPort)
+	err := http.ListenAndServe(addressPort, nil)
+	log.Fatal(err, nil)
 }
