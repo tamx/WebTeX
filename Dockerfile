@@ -8,7 +8,8 @@ FROM marketplace.gcr.io/google/debian10:latest
 
 WORKDIR /usr/local/bin/
 RUN apt-get update \
-    && apt-get install -y fonts-takao texlive texlive-lang-cjk texlive-extra-utils
+    && apt-get install -y fonts-takao texlive texlive-lang-cjk texlive-extra-utils \
+    && mkdir tmp
 COPY --from=builder /go/src/WebTex/webtex /usr/local/bin/
 COPY ./src/webtex/index.html /usr/local/bin/
 
