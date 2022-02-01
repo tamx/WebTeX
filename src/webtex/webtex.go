@@ -41,11 +41,14 @@ func makeFile(data, filename string) {
 }
 
 func main() {
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl := template.Must(template.ParseFiles("index.html"))
-		tmpl.Execute(w, nil)
-	})
+	http.Handle("/static/",
+		http.StripPrefix("/static/",
+			http.FileServer(http.Dir("static"))))
+	http.HandleFunc("/index.html",
+		func(w http.ResponseWriter, r *http.Request) {
+			tmpl := template.Must(template.ParseFiles("index.html"))
+			tmpl.Execute(w, nil)
+		})
 	http.HandleFunc("/post", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		data := r.PostFormValue("data")
