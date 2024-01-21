@@ -1,0 +1,405 @@
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="Cross-Origin-Opener-Policy" content="same-origin">
+  <style type="text/css">
+    .wrapper {
+      width: 100%;
+      height: 95%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .main,
+    .pdf {
+      padding: 10px;
+    }
+
+    .main {
+      width: 50%;
+      height: 95%;
+    }
+
+    .pdf {
+      width: 48%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrapper">
+    <section class="main">
+      <!--Add buttons to initiate auth sequence and sign out-->
+      <button id="button" onclick="create();">create</button>
+      <button id="button" onclick="load();">Get G Drives</button>
+      <input type="text" id="docsid" size="40" placeholder="Google Docs ID or URL" />
+      <button id='save'>save</button>
+      <button id='compile'>compile</button>
+      <!-- <iframe id="gdocs" class="tex" width="100%" height="100%"></iframe> -->
+      <div id="editor" class="tex" style="width: 100%; height: 100%;"></div>
+    </section>
+    <section class="pdf">
+      <iframe name="pdfframe" width="100%" height="100%"></iframe>
+    </section>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js">
+  </script>
+  <script>
+    let editor = null;
+
+    function initEditor(data) {
+      if (editor !== null) {
+        editor.dispose();
+        editor = null;
+      }
+      require.config({
+        paths: {
+          vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+        }
+      });
+
+      require(['vs/editor/editor.main'], function () {
+        monaco.languages.register({
+          id: 'myCustomLanguage'
+        });
+        monaco.languages.setMonarchTokensProvider('myCustomLanguage', {
+          tokenizer: {
+            root: [
+              [/\\[a-zA-Z]+/, 'custom-notice'],
+              [/\$[^$]*\$/, 'custom-date'],
+              [/\\\[[^]*\\\]/, 'custom-date'],
+              [/\%.*$/, 'custom-info']
+            ]
+          }
+        });
+
+        // Define a new theme that constains only rules that match this language
+        monaco.editor.defineTheme('myCoolTheme', {
+          colors: {},
+          base: 'vs',
+          inherit: false,
+          rules: [
+            { token: 'custom-notice', foreground: 'AA00AA' },
+            { token: 'custom-date', foreground: '00AA00' },
+            { token: 'custom-info', foreground: 'AA8800' },
+            { token: 'custom-error', foreground: 'ff0000', fontStyle: 'bold' }
+          ]
+        });
+
+        editor = monaco.editor.create(
+          document.getElementById('editor'),
+          {
+            theme: 'myCoolTheme',
+            value: getCode(),
+            language: 'myCustomLanguage',
+            readOnly: false,
+            // theme: "vs-dark",
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            autoSize: true,
+            scrollbar: {
+              handleMouseWheel: true
+            }
+          });
+
+        function getCode() {
+          // return [
+          //   '\\documentclass[twocolumn,a4j]{jarticle}',
+          //   '\\begin{document}',
+          //   '',
+          //   '\\end{document}'
+          // ].join('\n');
+          return data;
+        }
+
+        // 何かイベントに応じて編集した文字列を取得する
+        // console.log(editor.getValue());
+        // editor.getModel().onDidChangeContent((event) => {
+        //   console.log(editor.getValue());
+        //   console.log(event);
+        // });
+        // editor.on('change', function (event) {
+        //   console.log(editor.getValue());
+        //   console.log(event);
+        // });
+        document.onkeydown = (e) => {
+          if (e.ctrlKey && e.keyCode === 83) {
+            e.preventDefault();
+            // console.log(editor.getValue());
+            save(editor.getValue());
+          }
+        };
+        editor.addCommand(
+          monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+          // monaco.KeyMod.chord(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S),
+          () => {
+            // alert("F9 pressed!");
+            // console.log(editor.getValue());
+            submit(editor.getValue());
+          });
+        document.getElementById('save').
+          addEventListener('click',
+            (e) => {
+              save(editor.getValue());
+            }
+          );
+        document.getElementById('compile').
+          addEventListener('click',
+            (e) => {
+              submit(editor.getValue());
+            }
+          );
+      });
+    };
+  </script>
+  <script type="text/javascript">
+    async function create() {
+      const token = gapi.client.getToken();
+      if (token === null) {
+        handleAuthClick();
+        return;
+      }
+      if (parseFileID() !== "") {
+        return;
+      }
+      const filename = document.getElementById('docsid').value;
+      await gapi.client.drive.files.create({
+        uploadType: 'media',
+        supportsAllDrives: true,
+        contentType: "plain/text",
+        // parents: ["parentID"],
+        name: filename
+      }).then((res) => {
+        // console.log(res.result.id);
+        const data = [
+          '\\documentclass[a4j,12pt]{jreport}',
+          '\\begin{document}',
+          '',
+          '\\end{document}'
+        ].join('\n');
+        uploadDriveFile(res.result.id, data, () => {
+          document.getElementById('docsid').value =
+            '/' + res.result.id + '/';
+          load();
+        });
+      });
+    }
+
+    function load() {
+      const token = gapi.client.getToken();
+      if (token === null) {
+        handleAuthClick();
+        return;
+      }
+      var docsid = parseFileID();
+      if (docsid === "") {
+        return;
+      }
+      getDriveFile(docsid);
+    }
+
+    function save(value) {
+      var docsid = parseFileID();
+      // console.log(value);
+      uploadDriveFile(docsid, value);
+    }
+
+    function submit(value) {
+      // form を動的に生成
+      var form = document.createElement('form');
+      form.action = '/post';
+      form.method = 'POST';
+      form.target = 'pdfframe';
+
+      // formdta イベントに関数を登録(submit する直前に発火)
+      form.addEventListener('formdata', (e) => {
+        var fd = e.formData;
+
+        // データをセット
+        fd.set('data', value);
+        // console.log(value);
+      });
+
+      // body に追加
+      document.body.append(form);
+
+      // submit
+      form.submit();
+    }
+
+    // Client ID and API key from the Developer Console
+    var CLIENT_ID = '';
+    var API_KEY = '';
+
+    // Discovery doc URL for APIs used by the quickstart
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
+    // Authorization scopes required by the API; multiple scopes can be
+    // included, separated by spaces.
+    // var SCOPES = "https://www.googleapis.com/auth/documents.readonly";
+    var SCOPES = "https://www.googleapis.com/auth/drive.file";
+
+    var authorizeButton = document.getElementById('compile');
+
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+
+    /**
+     * Callback after api.js is loaded.
+     */
+    function gapiLoaded() {
+      gapi.load('client', initializeGapiClient);
+    }
+
+    /**
+     * Callback after the API client is loaded. Loads the
+     * discovery doc to initialize the API.
+     */
+    async function initializeGapiClient() {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+      }).then(() => {
+        // console.log("inited.");
+      });
+      gapiInited = true;
+      maybeEnableButtons();
+    }
+
+    /**
+     * Callback after Google Identity Services are loaded.
+     */
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // defined later
+      });
+      gisInited = true;
+      maybeEnableButtons();
+    }
+
+    /**
+     * Enables user interaction after all libraries are loaded.
+     */
+    function maybeEnableButtons() {
+      if (gapiInited && gisInited) {
+        // document.getElementById('authorize_button').style.visibility = 'visible';
+      }
+    }
+
+    /**
+     *  Sign in the user upon button click.
+     */
+    function handleAuthClick() {
+      tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) {
+          throw (resp);
+        }
+        // document.getElementById('signout_button').style.visibility = 'visible';
+        // document.getElementById('authorize_button').innerText = 'Refresh';
+        // await listFiles();
+        // console.log("Authed");
+        const token = gapi.client.getToken();
+        // console.log(token.access_token);
+        gapi.client.setToken({
+          access_token: token.access_token
+        });
+      };
+
+      if (gapi.client.getToken() === null) {
+        // Prompt the user to select a Google Account and ask for consent to share their data
+        // when establishing a new session.
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } else {
+        // Skip display of account chooser and consent dialog for an existing session.
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
+    }
+
+    /**
+     *  Sign out the user upon button click.
+     */
+    function handleSignoutClick() {
+      const token = gapi.client.getToken();
+      if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        // document.getElementById('content').innerText = '';
+        // document.getElementById('authorize_button').innerText = 'Authorize';
+        // document.getElementById('signout_button').style.visibility = 'hidden';
+      }
+    }
+
+    function parseFileID() {
+      var docsid = document.getElementById('docsid').value;
+      //   console.log(docsid);
+      docsid = docsid.substring(0, docsid.lastIndexOf('/'));
+      docsid = docsid.substring(docsid.lastIndexOf('/') + 1);
+      return docsid;
+    }
+
+    function fetch(url, callback) {
+      const token = gapi.client.getToken().access_token;
+      // console.log(token);
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url);
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== xhr.DONE) {
+          return;
+        }
+        if (xhr.status !== 200) {
+          return;
+        }
+        const resp = xhr.response;
+        callback(resp);
+      }
+      xhr.setRequestHeader('Authorization',
+        'Bearer ' + token);
+      xhr.send();
+    }
+
+    async function getDriveFile(fileId) {
+      const u = `https://www.googleapis.com/drive/v3/files/` +
+        fileId + `?alt=media`;
+      fetch(u, (body) => {
+        initEditor(body);
+      });
+    }
+
+    async function uploadDriveFile(fileId, data, callback) {
+      // fileId: files.listsで取得しておく
+      const res = await gapi.client.request({
+        path: '/upload/drive/v3/files/' + fileId,
+        method: 'PATCH',
+        params: {
+          uploadType: 'media',
+          supportsAllDrives: true
+        },
+        body: data
+      }).then((res) => {
+        if (callback !== null) {
+          callback();
+        }
+      })
+      return res;
+    }
+
+    document.getElementById('docsid').
+      addEventListener('keypress', (e) => {
+        if (e.keyCode === 13) {
+          load();
+        }
+      });
+  </script>
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+</body>
+
+</html>

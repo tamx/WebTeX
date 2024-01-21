@@ -31,72 +31,80 @@ func makeRandomStr(digit uint32) (string, error) {
 	return result, nil
 }
 
-func makeFile(data, filename string) {
+func makeFile(data, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
-		log.Fatal(err) //ファイルが開けなかったときエラー出力
+		// log.Fatal(err) //ファイルが開けなかったときエラー出力
+		return err
 	}
 	defer file.Close()
 	file.Write([]byte(data))
+	return nil
 }
 
 func main() {
 	http.Handle("/static/",
 		http.StripPrefix("/static/",
 			http.FileServer(http.Dir("static"))))
-	http.HandleFunc("/index.html",
+	http.HandleFunc("/",
 		func(w http.ResponseWriter, r *http.Request) {
-			tmpl := template.Must(template.ParseFiles("index.html"))
+			tmpl := template.Must(template.
+				ParseFiles("static/vscode.html"))
 			tmpl.Execute(w, nil)
 		})
-	http.HandleFunc("/post", func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
-		data := r.PostFormValue("data")
-		randomStr, _ := makeRandomStr(16)
-		filename := "./tmp/" + randomStr + ".tex"
-		// fmt.Println(data)
-		defer os.Remove(filename)
-		makeFile(data, filename)
-		pdffile := "./tmp/" + randomStr + ".pdf"
+	http.HandleFunc("/post",
+		func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			data := r.PostFormValue("data")
+			randomStr, _ := makeRandomStr(16)
+			filename := "./tmp/" + randomStr + ".tex"
+			// fmt.Println(data)
+			defer os.Remove(filename)
+			if err := makeFile(data, filename); err != nil {
+				w.Header().Set("Content-Type", "text/plain")
+				w.Write([]byte("File Error: " + err.Error()))
+				return
+			}
+			pdffile := "./tmp/" + randomStr + ".pdf"
 
-		cmd := exec.Command("/usr/bin/cluttex",
-			"-e", "platex",
-			"-o", pdffile,
-			filename)
-		defer os.Remove(pdffile)
-		stdout, _ := cmd.StdoutPipe()
-		cmd.Start()
+			cmd := exec.Command("/usr/bin/cluttex",
+				"-e", "platex",
+				"-o", pdffile,
+				filename)
+			defer os.Remove(pdffile)
+			stdout, _ := cmd.StdoutPipe()
+			cmd.Start()
 
-		result := ""
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			result += scanner.Text() + "\n"
-		}
+			result := ""
+			scanner := bufio.NewScanner(stdout)
+			for scanner.Scan() {
+				result += scanner.Text() + "\n"
+			}
 
-		// err := cmd.Run()
-		err := cmd.Wait()
-		if err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte(result))
-			w.Write([]byte("Command Exec Error: " + err.Error()))
-			return
-		}
+			// err := cmd.Run()
+			err := cmd.Wait()
+			if err != nil {
+				w.Header().Set("Content-Type", "text/plain")
+				w.Write([]byte(result))
+				w.Write([]byte("Command Exec Error: " + err.Error()))
+				return
+			}
 
-		w.Header().Set("Content-Type", "application/pdf")
-		reader, err := os.Open(pdffile)
-		if err != nil {
-			http.Error(w, err.Error(),
-				http.StatusInternalServerError)
-			return
-		}
+			w.Header().Set("Content-Type", "application/pdf")
+			reader, err := os.Open(pdffile)
+			if err != nil {
+				http.Error(w, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
 
-		_, err = io.Copy(w, reader)
-		if err != nil {
-			http.Error(w, err.Error(),
-				http.StatusInternalServerError)
-			return
-		}
-	})
+			_, err = io.Copy(w, reader)
+			if err != nil {
+				http.Error(w, err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+		})
 
 	// このロジックはApp Engine APIから完全脱却した場合のみ
 	port := os.Getenv("PORT")
