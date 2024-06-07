@@ -128,9 +128,10 @@
         // });
         document.onkeydown = (e) => {
           if (e.ctrlKey && e.keyCode === 83) {
+            // ignore Ctrl + S
             e.preventDefault();
             // console.log(editor.getValue());
-            save(editor.getValue());
+            // save(editor.getValue());
           }
         };
         editor.addCommand(
@@ -195,7 +196,7 @@
         handleAuthClick();
         return;
       }
-      var docsid = parseFileID();
+      const docsid = parseFileID();
       if (docsid === "") {
         return;
       }
@@ -203,9 +204,16 @@
     }
 
     function save(value) {
-      var docsid = parseFileID();
+      const docsid = parseFileID();
+      if (docsid === "") {
+        return;
+      }
+      const element = document.getElementById('save');
+      element.disable = true;
       // console.log(value);
-      uploadDriveFile(docsid, value);
+      uploadDriveFile(docsid, value, () => {
+        element.disable = false;
+      });
     }
 
     function submit(value) {
@@ -386,7 +394,9 @@
         if (callback !== null) {
           callback();
         }
-      })
+      }, () => {
+        window.alert('failed');
+      });
       return res;
     }
 
