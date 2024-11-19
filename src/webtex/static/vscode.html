@@ -196,11 +196,14 @@
     }
 
     function load() {
-      const docsid = parseFileID();
+      let docsid = document.getElementById('docsid').value;
+      //   console.log(docsid);
+      docsid = docsid.substring(0, docsid.lastIndexOf('/'));
+      docsid = docsid.substring(docsid.lastIndexOf('/') + 1);
       if (docsid === "") {
         return;
       }
-      getDriveFile(docsid);
+      location.href = '/?id=' + docsid;
     }
 
     function save(value) {
@@ -258,13 +261,15 @@
     /**
      * Callback after Google Identity Services are loaded.
      */
-    function gisLoaded() {
+    function gisLoaded(callback) {
       function onTokenResponse(event) {
         // handle 'access_token' here
         // console.log(event.access_token);
         access_token = event.access_token;
         gisInited = true;
-        maybeEnableButtons();
+        if (callback !== null) {
+          callback();
+        }
       };
       const tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
@@ -274,21 +279,28 @@
       tokenClient.requestAccessToken();
     }
 
-    /**
-     * Enables user interaction after all libraries are loaded.
-     */
-    function maybeEnableButtons() {
-      if (gapiInited && gisInited) {
-        // document.getElementById('authorize_button').style.visibility = 'visible';
+    function getUrlQueries() {
+      const queryStr = window.location.search.slice(1);  // 文頭?を除外
+      queries = {};
+
+      // クエリがない場合は空のオブジェクトを返す
+      if (!queryStr) {
+        return queries;
       }
+
+      // クエリ文字列を & で分割して処理
+      queryStr.split('&').forEach(function (queryStr) {
+        // = で分割してkey,valueをオブジェクトに格納
+        const queryArr = queryStr.split('=');
+        queries[queryArr[0]] = queryArr[1];
+      });
+
+      return queries;
     }
 
     function parseFileID() {
-      var docsid = document.getElementById('docsid').value;
-      //   console.log(docsid);
-      docsid = docsid.substring(0, docsid.lastIndexOf('/'));
-      docsid = docsid.substring(docsid.lastIndexOf('/') + 1);
-      return docsid;
+      const queries = getUrlQueries();
+      return queries['id'];
     }
 
     function wget(url, callback) {
@@ -350,6 +362,7 @@
           }
         }).catch(() => {
           window.alert('failed');
+          gisLoaded(null);
         });
     }
 
@@ -380,7 +393,7 @@
         }
       });
   </script>
-  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded(function(){getDriveFile(parseFileID());})"></script>
 </body>
 
 </html>
