@@ -1,4 +1,4 @@
-FROM golang:1.21-bookworm as builder
+FROM golang:1.23-bookworm as builder
 
 WORKDIR /go/src/WebTex
 COPY ./src/webtex/ .
